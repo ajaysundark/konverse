@@ -4,9 +4,12 @@ Konverse is an in-cluster intelligent agent for Kubernetes cluster management, d
 
 ## Architecture
 
-Konverse consists of two main components:
+Konverse's architecture is designed for comprehensive, real-time analysis of Kubernetes nodes. It combines efficient data collection with powerful AI-driven analysis to provide actionable insights.
+
+*   **MCP Server (`mcp_server`):** This is the intelligence core of Konverse. It's a Python-based server that exposes an API for an external Large Language Model (LLM), such as Google's Gemini. The server defines a set of tools the LLM can use to gather and analyze data from the Konverse Agent. This allows an SRE to interact with the cluster in natural language, asking the LLM to diagnose complex issues like node memory pressure or performance degradation. The server is located in the `mcp_server/` directory.
 
 *   **Konverse Agent (`nodecollector`):** A lightweight agent written in Go that runs as a DaemonSet on each node in the cluster. It collects a continuous stream of node-level metrics, including CPU, memory, swap utilization, and disk I/O. The agent is located in the `nodecollector/` directory.
+
 *   **eBPF Tools (`ebpf-tools`):** A collection of powerful eBPF tracers for efficient, low-overhead sourcing of critical kernel-level events. These tools can capture events like OOM kills and high-latency swap faults, providing granular data that is crucial for debugging complex performance problems. The collected events are sent to the Konverse Agent for aggregation. The tools are located in the `ebpf-tools/` directory.
 
 ## Getting Started
