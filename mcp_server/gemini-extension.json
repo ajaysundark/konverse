@@ -1,0 +1,9 @@
+{
+  "name": "GKE Node Diagnostics Server",
+  "version": "1.0.0",
+  "mcpServers": {
+    "gke_node_diagnostics_server": {
+       "httpUrl" : "http://0.0.0.0:8000/mcp/"
+    }
+  }
+}

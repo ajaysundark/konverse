@@ -1,0 +1,96 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ebpf-config
+  namespace: kube-system
+data:
+  enabled_tracers: |
+    - swaphist.py
+---
+# DaemonSet 1: eBPF + Node Collector Server
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: node-collector
+  namespace: kube-system
+  labels:
+    app: node-collector
+spec:
+  selector:
+    matchLabels: { app: node-collector }
+  template:
+    metadata:
+      labels: { app: node-collector }
+    spec:
+      hostPID: true
+      hostNetwork: true  # Share node's network namespace
+      tolerations:
+      - operator: "Exists"
+      containers:
+      # eBPF tracer container
+      - name: ebpf-tracer
+        image: gcr.io/ajaysundar-gke-multi-cloud-dev/hack/ebpf-tools:0.5
+        securityContext:
+          privileged: true   # required for bpf
+        volumeMounts:
+        - { name: lib-modules,  mountPath: /lib/modules, readOnly: true }
+        - { name: sys-kernel-debug,  mountPath: /sys/kernel/debug, readOnly: true }
+        - { name: tracer-config,  mountPath: /etc/ebpf, readOnly: true }
+      initContainers:
+      # Node collector HTTP server
+      - name: node-collector
+        image: gcr.io/ajaysundar-gke-multi-cloud-dev/hack/nodecollector:0.5
+        securityContext:
+          privileged: true   # required for /proc access
+        ports:
+        - containerPort: 3100
+          hostPort: 3100  # Bind to node's port 3100
+        env:
+        - name: PORT
+          value: "3100"
+        volumeMounts:
+        - { name: proc,  mountPath: /proc, readOnly: true }
+        - { name: cgv2,  mountPath: /sys/fs/cgroup, readOnly: true }
+      volumes:
+      - { name: proc, hostPath: { path: /proc } }
+      - { name: cgv2, hostPath: { path: /sys/fs/cgroup } }
+      - { name: lib-modules, hostPath: { path: /lib/modules } }
+      - { name: sys-kernel-debug, hostPath: { path: /sys/kernel/debug } }
+      - name: tracer-config
+        configMap:
+          name: ebpf-config
+          items:
+          - key: enabled_tracers
+            path: config.yaml
+
+
+---
+# DaemonSet 2: MCP Server
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: mcp-server
+  namespace: kube-system
+  labels:
+    app: mcp-server
+spec:
+  selector:
+    matchLabels: { app: mcp-server }
+  template:
+    metadata:
+      labels: { app: mcp-server }
+    spec:
+      hostNetwork: true  # Share node's network namespace
+      tolerations:
+      - operator: "Exists"
+      containers:
+      - name: mcp-server
+        image: gcr.io/ajaysundar-gke-multi-cloud-dev/hack/gke-node-mcp-server:0.5
+        ports:
+        - containerPort: 3200
+          hostPort: 3200  # Bind to node's port 3200
+        env:
+        - name: PORT
+          value: "3200"
+        - name: NODE_COLLECTOR_URL
+          value: "http://127.0.0.1:3100"  # Can access via localhost since using hostNetwork

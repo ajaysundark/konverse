@@ -1,0 +1,31 @@
+# DaemonSet 2: MCP Server
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: mcp-server
+  namespace: kube-system
+  labels:
+    app: mcp-server
+spec:
+  selector:
+    matchLabels: { app: mcp-server }
+  template:
+    metadata:
+      labels: { app: mcp-server }
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: gke-ajaysundar-swap-test-swap-ubuntu-60a593a3-5c2d
+      hostNetwork: true  # Share node's network namespace
+      tolerations:
+      - operator: "Exists"
+      containers:
+      - name: mcp-server
+        image: gcr.io/ajaysundar-gke-multi-cloud-dev/hack/gke-node-mcp-server:0.6
+        ports:
+        - containerPort: 3200
+          hostPort: 3200  # Bind to node's port 3200
+        env:
+        - name: PORT
+          value: "3200"
+        - name: NODE_COLLECTOR_URL
+          value: "http://127.0.0.1:3100"  # Can access via localhost since using hostNetwork

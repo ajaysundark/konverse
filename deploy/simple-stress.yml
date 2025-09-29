@@ -1,0 +1,32 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: memory-test-pod
+spec:
+  nodeSelector:
+    kubernetes.io/hostname: gke-ajaysundar-swap-test-swap-ubuntu-60a593a3-5c2d
+  containers:
+  - name: memory-test
+    image: python:3.12-slim-bookworm
+    resources:
+      requests:
+        memory: "5Gi"
+      limits:
+        memory: "10Gi"
+    command: ["python3", "-c"]
+    args:
+    - |
+      import time
+      print("Starting memory allocation test...")
+      memory_blocks = []
+      block_size_mb = 256 * 1024 * 1024  # 256 MB in bytes
+
+      for i in range(50):  # create 50 blocks * 256 MB
+          block = bytearray(block_size_mb)
+          memory_blocks.append(block)
+          print(f"Allocated {256 * (i+1)} MB")
+          time.sleep(2)
+
+      print("Memory allocation complete. Will sleep for 1h")
+      time.sleep(3600)
+  restartPolicy: Never

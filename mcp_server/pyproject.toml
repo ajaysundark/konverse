@@ -1,0 +1,10 @@
+[project]
+name = "gke-node-mcp-server"
+version = "0.1.0"
+description = "GKE Node Diagnostics Server"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "fastmcp==2.9.2",
+  "requests==2.25.1"
+]
