@@ -1,55 +1,75 @@
-# Node Collector
+# Konverse
 
-`nodecollector` is a simple service that runs on each K8s node and collects
-vmstat metrics like CPU, memory, swap, and disk I/O. It exposes these metrics
-via an HTTP API.
+Konverse is an in-cluster intelligent agent for Kubernetes cluster management, designed to act as an SRE's sidekick. It provides deep insights into node and workload health, helping diagnose performance issues and maintain cluster stability.
 
-## Building the Docker Image
+## Architecture
 
-The service is containerized using the provided `nodecollector/Dockerfile`.
+Konverse consists of two main components:
 
-1.  **Navigate to the `nodecollector` directory:** `cd
-    experimental/users/ajaysundar/node-debugger/nodecollector`
+*   **Konverse Agent (`nodecollector`):** A lightweight agent written in Go that runs as a DaemonSet on each node in the cluster. It collects a continuous stream of node-level metrics, including CPU, memory, swap utilization, and disk I/O. The agent is located in the `nodecollector/` directory.
+*   **eBPF Tools (`ebpf-tools`):** A collection of powerful eBPF tracers for efficient, low-overhead sourcing of critical kernel-level events. These tools can capture events like OOM kills and high-latency swap faults, providing granular data that is crucial for debugging complex performance problems. The collected events are sent to the Konverse Agent for aggregation. The tools are located in the `ebpf-tools/` directory.
 
-2.  **Build the Docker image:** Replace the tag with your desired image name and
-    version. `docker build -t
-    gcr.io/ajaysundar-gke-multi-cloud-dev/hack/nodecollector:v0.1 .`
+## Getting Started
 
-3.  **Push the image to a container registry:** `docker push
-    gcr.io/ajaysundar-gke-multi-cloud-dev/hack/nodecollector:v0.1`
+### Building the Agent Docker Image
 
-Note: Use your valid gcr registry path above.
+The Konverse agent is containerized using the provided `nodecollector/Dockerfile`.
 
-## Deployment
+1.  **Navigate to the `nodecollector` directory:**
+    ```bash
+    cd nodecollector
+    ```
 
-The `nodecollector` is deployed as a Kubernetes DaemonSet to ensure it runs on
-every node in the cluster.
+2.  **Build the Docker image:** Replace `<your-registry>` with your container registry path.
+    ```bash
+    docker build -t <your-registry>/konverse/nodecollector:v0.1 .
+    ```
 
-1.  **Update the image in the deployment file:** Make sure the `image` field in
-    `deploy/k8s-hack.yml` points to the image you just pushed.
+3.  **Push the image to your container registry:**
+    ```bash
+    docker push <your-registry>/konverse/nodecollector:v0.1
+    ```
 
-2.  **Apply the manifest:** `kubectl apply -f
-    experimental/users/ajaysundar/node-debugger/deploy/k8s-hack.yml`
+### Deployment
 
-Note: Use your valid gcr registry path as above.
+The Konverse agent is deployed as a Kubernetes DaemonSet to ensure it runs on every node in the cluster.
 
-## API Endpoints
+1.  **Update the image in the deployment file:** Make sure the `image` field in `deploy/k8s-hack.yml` points to the image you just pushed.
 
-The service listens on port `3100`.
+2.  **Apply the manifest:**
+    ```bash
+    kubectl apply -f deploy/k8s-hack.yml
+    ```
 
-*   Create a port-forwarding from the `node-collector` pod to your cloudtop.
+## Konverse Agent API
 
-    *   **Example:** `kubectl port-forward node-debugger-22d5t -n kube-system 3100:3100`
+The agent exposes two ports for different purposes.
 
-*   `GET /ping`: A simple health check endpoint that returns "ok".
+### Query API (Port 3100)
 
+This API is for querying collected metrics. To access it, you can port-forward from one of the agent pods:
+
+```bash
+# Find a pod name
+kubectl get pods -n kube-system | grep node-debugger
+
+# Port-forward
+kubectl port-forward <pod-name> -n kube-system 3100:3100
+```
+
+**Endpoints:**
+
+*   `GET /ping`: A simple health check endpoint that returns `"ok"`.
     *   **Example:** `curl http://127.0.0.1:3100/ping`
 
-*   `GET /history`: Returns a JSON array of the last 15 minutes of node vmstat
-    data.
-
+*   `GET /history`: Returns a JSON array of the last 15 minutes of node vmstat data.
     *   **Example:** `curl http://127.0.0.1:3100/history`
 
-*   `GET /stream`: Streams live node vmstat data using Server-Sent Events.
-
+*   `GET /stream`: Streams live node vmstat data using Server-Sent Events (SSE).
     *   **Example:** `curl -N -H "Accept: text/event-stream" http://127.0.0.1:3100/stream`
+
+### Ingestion API (Port 3101)
+
+This API is used by the eBPF tools to send events to the agent.
+
+*   `POST /events`: Ingests events (e.g., OOM kills, container lifecycle events) from the eBPF tracers. The event is sent as a JSON payload in the request body.
